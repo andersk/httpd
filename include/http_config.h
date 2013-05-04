@@ -1012,6 +1012,15 @@ AP_DECLARE(void) ap_register_hooks(module *m, apr_pool_t *p);
  */
 AP_DECLARE(void) ap_fixup_virtual_hosts(apr_pool_t *p,
                                         server_rec *main_server);
+/**
+ * Setup all virtual hosts
+ * @param p The pool to allocate from
+ * @param main_server The head of the server_rec list
+ * @param virt The individual virtual host to fix
+ */
+AP_DECLARE(void) ap_fixup_virtual_host(apr_pool_t *p,
+				       server_rec *main_server,
+				       server_rec *virt);
 
 /**
  * Reserve some modules slots for modules loaded by other means than
