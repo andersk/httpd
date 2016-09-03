@@ -111,6 +111,14 @@ AP_DECLARE(void) ap_update_vhost_from_headers(request_rec *r);
 AP_DECLARE(int) ap_matches_request_vhost(request_rec *r, const char *host,
     apr_port_t port);
 
+/**
+ * Lookup the server record for the given connection and hostname.
+ * @param conn The current connection
+ * @param host The hostname in the headers
+ * @param serverp Pointer to the server record pointer
+ */
+AP_DECLARE(void) ap_lookup_vhost(conn_rec *conn, const char *host, server_rec **serverp);
+
 #ifdef __cplusplus
 }
 #endif

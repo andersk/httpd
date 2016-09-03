@@ -853,7 +853,7 @@ AP_DECLARE(int) ap_matches_request_vhost(request_rec *r, const char *host,
 }
 
 
-static void check_hostalias(request_rec *r)
+AP_DECLARE(void) ap_lookup_vhost(conn_rec *conn, const char *host, server_rec **serverp)
 {
     /*
      * Even if the request has a Host: header containing a port we ignore
@@ -868,17 +868,20 @@ static void check_hostalias(request_rec *r)
      * - except for the addresses from the VirtualHost line, none of the other
      *   names we'll match have ports associated with them
      */
-    const char *host = r->hostname;
     apr_port_t port;
     server_rec *s;
     server_rec *virthost_s;
     server_rec *last_s;
     name_chain *src;
 
+    /* check if we tucked away a name_chain */
+    if (!conn->vhost_lookup_data)
+        return;
+
     virthost_s = NULL;
     last_s = NULL;
 
-    port = r->connection->local_addr->port;
+    port = conn->local_addr->port;
 
     /* Recall that the name_chain is a list of server_addr_recs, some of
      * whose ports may not match.  Also each server may appear more than
@@ -889,7 +892,7 @@ static void check_hostalias(request_rec *r)
      * a single server are adjacent to each other.
      */
 
-    for (src = r->connection->vhost_lookup_data; src; src = src->next) {
+    for (src = conn->vhost_lookup_data; src; src = src->next) {
         server_addr_rec *sar;
 
         /* We only consider addresses on the name_chain which have a matching
@@ -934,7 +937,7 @@ static void check_hostalias(request_rec *r)
 
 found:
     /* s is the first matching server, we're done */
-    r->server = s;
+    *serverp = s;
 }
 
 
@@ -951,7 +954,7 @@ static void check_serverpath(request_rec *r)
      * This is in conjunction with the ServerPath code in http_core, so we
      * get the right host attached to a non- Host-sending request.
      *
-     * See the comment in check_hostalias about how each vhost can be
+     * See the comment in ap_lookup_vhost about how each vhost can be
      * listed multiple times.
      */
 
@@ -989,11 +992,11 @@ AP_DECLARE(void) ap_update_vhost_from_headers(request_rec *r)
         if (r->status != HTTP_OK)
             return;
     }
-    /* check if we tucked away a name_chain */
-    if (r->connection->vhost_lookup_data) {
-        if (r->hostname)
-            check_hostalias(r);
-        else
+    if (r->hostname) {
+        ap_lookup_vhost(r->connection, r->hostname, &r->server);
+    } else {
+        /* check if we tucked away a name_chain */
+        if (r->connection->vhost_lookup_data)
             check_serverpath(r);
     }
 }
