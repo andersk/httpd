@@ -33,7 +33,7 @@
 
 static void ssl_configure_env(request_rec *r, SSLConnRec *sslconn);
 #ifdef HAVE_TLSEXT
-static int ssl_find_vhost(void *servername, conn_rec *c, server_rec *s);
+static int ssl_set_vhost(conn_rec *c, server_rec *s);
 #endif
 
 #define SWITCH_STATUS_LINE "HTTP/1.1 101 Switching Protocols"
@@ -1901,8 +1901,9 @@ int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)
 
     if (c) {
         if (servername) {
-            if (ap_vhost_iterate_given_conn(c, ssl_find_vhost,
-                                            (void *)servername)) {
+            server_rec *s = NULL;
+            ap_lookup_vhost(c, servername, &s);
+            if (s != NULL && ssl_set_vhost(c, s)) {
                 ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02043)
                               "SSL virtual host for servername %s found",
                               servername);
@@ -1940,63 +1941,15 @@ int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)
     return SSL_TLSEXT_ERR_NOACK;
 }
 
-/*
- * Find a (name-based) SSL virtual host where either the ServerName
- * or one of the ServerAliases matches the supplied name (to be used
- * with ap_vhost_iterate_given_conn())
- */
-static int ssl_find_vhost(void *servername, conn_rec *c, server_rec *s)
+static int ssl_set_vhost(conn_rec *c, server_rec *s)
 {
     SSLSrvConfigRec *sc;
     SSL *ssl;
-    BOOL found = FALSE;
-    apr_array_header_t *names;
-    int i;
     SSLConnRec *sslcon;
 
-    /* check ServerName */
-    if (!strcasecmp(servername, s->server_hostname)) {
-        found = TRUE;
-    }
-
-    /*
-     * if not matched yet, check ServerAlias entries
-     * (adapted from vhost.c:matches_aliases())
-     */
-    if (!found) {
-        names = s->names;
-        if (names) {
-            char **name = (char **)names->elts;
-            for (i = 0; i < names->nelts; ++i) {
-                if (!name[i])
-                    continue;
-                if (!strcasecmp(servername, name[i])) {
-                    found = TRUE;
-                    break;
-                }
-            }
-        }
-    }
-
-    /* if still no match, check ServerAlias entries with wildcards */
-    if (!found) {
-        names = s->wild_names;
-        if (names) {
-            char **name = (char **)names->elts;
-            for (i = 0; i < names->nelts; ++i) {
-                if (!name[i])
-                    continue;
-                if (!ap_strcasecmp_match(servername, name[i])) {
-                    found = TRUE;
-                    break;
-                }
-            }
-        }
-    }
-
-    /* set SSL_CTX (if matched) */
+    /* set SSL_CTX */
     sslcon = myConnConfig(c);
-    if (found && (ssl = sslcon->ssl) &&
+    if ((ssl = sslcon->ssl) &&
         (sc = mySrvConfig(s))) {
         SSL_CTX *ctx = SSL_set_SSL_CTX(ssl, sc->server->ssl_ctx);
         /*
