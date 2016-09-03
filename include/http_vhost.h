@@ -119,6 +119,16 @@ AP_DECLARE(int) ap_matches_request_vhost(request_rec *r, const char *host,
  */
 AP_DECLARE(void) ap_lookup_vhost(conn_rec *conn, const char *host, server_rec **serverp);
 
+/**
+ * Hook for looking up the server record for the given connection and
+ * hostname.
+ * @param conn The current connection
+ * @param host The hostname in the headers
+ * @param serverp Pointer to the server record pointer
+ * @return OK or DECLINED on success, error otherwise
+ */
+AP_DECLARE_HOOK(int, lookup_vhost, (conn_rec *conn, const char *host, server_rec **serverp));
+
 #ifdef __cplusplus
 }
 #endif

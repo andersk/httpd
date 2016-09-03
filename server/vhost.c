@@ -853,6 +853,13 @@ AP_DECLARE(int) ap_matches_request_vhost(request_rec *r, const char *host,
 }
 
 
+APR_HOOK_STRUCT(
+    APR_HOOK_LINK(lookup_vhost)
+);
+
+AP_IMPLEMENT_HOOK_RUN_FIRST(int, lookup_vhost, (conn_rec *conn, const char *host, server_rec **serverp), (conn, host, serverp), DECLINED);
+
+
 AP_DECLARE(void) ap_lookup_vhost(conn_rec *conn, const char *host, server_rec **serverp)
 {
     /*
@@ -876,7 +883,7 @@ AP_DECLARE(void) ap_lookup_vhost(conn_rec *conn, const char *host, server_rec **
 
     /* check if we tucked away a name_chain */
     if (!conn->vhost_lookup_data)
-        return;
+        goto base;
 
     virthost_s = NULL;
     last_s = NULL;
@@ -933,10 +940,15 @@ AP_DECLARE(void) ap_lookup_vhost(conn_rec *conn, const char *host, server_rec **
         goto found;
     }
 
+base:
+    s = conn->base_server;
+    if (ap_run_lookup_vhost(conn, host, &s) == OK)
+        *serverp = s;
     return;
 
 found:
     /* s is the first matching server, we're done */
+    ap_run_lookup_vhost(conn, host, &s);
     *serverp = s;
 }
 
